@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<body>
+<!--
+<video class = "camera" width = "320" style = "display: none"></video>
+<canvas class = "canvas" width = "320" height = "240"></canvas>
+<input type = "button" class = "snap" value = "   Snap   ">
+-->
+
+<!--<script src = "https://code.jquery.com/jquery-3.2.1.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin = "anonymous"></script>-->
+<script>
+var key1 = /* INSERT_KEY_HERE */;
+var cooldown = true;
+var button = document.createElement("input");
+button.type = "button";
+button.style.padding = "16px";
+button.value = "Snap";
+var camera = document.createElement("video");
+camera.width = "320";
+var canvas = document.createElement("canvas");
+canvas.width = "320";
+canvas.height = "240";
+var div = document.createElement("pre");
+div.innerText = "/";
+document.body.appendChild(camera);
+document.body.appendChild(button);
+document.body.appendChild(div);
+document.body.appendChild(canvas);
+
+var context = canvas.getContext("2d");
+
+// var camera = document.getElementsByClassName("camera")[0];
+// var context = document.getElementsByClassName("canvas")[0].getContext("2d");
+
+function replaceAll(str, find, replace) {
+  var i = str.indexOf(find);
+  if (i > -1){
+    str = str.replace(find, replace); 
+    i = i + replace.length;
+    var st2 = str.substring(i);
+    if(st2.indexOf(find) > -1){
+      str = str.substring(0,i) + replaceAll(st2, find, replace);
+    }       
+  }
+  return str;
+}
+
+function syntaxHighlight(json) {
+    /*
+    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    json = json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+        var cls = 'number';
+        if (/^"/.test(match)) {
+            if (/:$/.test(match)) {
+                cls = 'key';
+            } else {
+                cls = 'string';
+            }
+        } else if (/true|false/.test(match)) {
+            cls = 'boolean';
+        } else if (/null/.test(match)) {
+            cls = 'null';
+        }
+        return '<span class="' + cls + '">' + match + '</span>';
+    });
+    */
+    json = replaceAll(json, "{", " ");
+    json = replaceAll(json, "}", " ");
+    json = replaceAll(json, "[", " ");
+    json = replaceAll(json, "]", " ");
+    json = replaceAll(json, '"', "");
+    json = replaceAll(json, ',', "");
+    return json;
+}
+
+function dataURItoBlob(dataURI){
+    // convert base64/URLEncoded data component to raw binary data held in a string
+    var byteString;
+    if (dataURI.split(',')[0].indexOf('base64') >= 0)
+        byteString = atob(dataURI.split(',')[1]);
+    else
+        byteString = unescape(dataURI.split(',')[1]);
+
+    // separate out the mime component
+    var mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+
+    // write the bytes of the string to a typed array
+    var ia = new Uint8Array(byteString.length);
+    for (var i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+    }
+
+    return new Blob([ia], {type:mimeString});
+}
+
+if (navigator.mediaDevices){
+    if (navigator.mediaDevices === undefined){navigator.mediaDevices = {}}
+
+    if (navigator.mediaDevices.getUserMedia === undefined) {
+        navigator.mediaDevices.getUserMedia = function(constraints){
+        var getUserMedia = navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+
+        // Some browsers just don't implement it - return a rejected promise with an error
+        // to keep a consistent interface
+        if (!getUserMedia){return Promise.reject(new Error('getUserMedia is not implemented in this browser'))}
+
+        // Otherwise, wrap the call to the old navigator.getUserMedia with a Promise
+        return new Promise(function(resolve, reject){
+            getUserMedia.call(navigator, constraints, resolve, reject);
+        });
+        }
+    }
+
+    div.innerText = "Loading camera...";
+    
+    navigator.mediaDevices.getUserMedia({video: true}).then(function(stream){
+        div.innerText = "Camera loaded!";
+        camera.src = window.URL.createObjectURL(stream);
+        camera.play();
+    });
+}
+
+function onClick(event){
+    if (!cooldown){return}
+    cooldown = false;
+    div.innerText = "Click!";
+    context.drawImage(camera, 0, 0, 320, 240);
+    sendRequest();
+    setTimeout(function(){cooldown = true}, 3000);
+}
+	
+function sendRequest(){
+    div.innerText = "Requesting...";
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "https://westus.api.cognitive.microsoft.com/vision/v1.0/analyze?visualFeatures=Categories,Tags,Description,Faces&language=en", true);
+    xhr.setRequestHeader("Content-type", "application/octet-stream");
+    xhr.setRequestHeader("Ocp-Apim-Subscription-Key", key1);
+    
+    /*
+    var dataURL = canvas.toDataURL("image/png", 0.5);
+    var idx = dataURL.indexOf("base64,", 0);
+    var typeIndex = dataURL.indexOf(";", 0);
+    var format = dataURL.substr(5, typeIndex - 5);
+    var dataPart = dataURL.substring(idx + 7, dataURL.length);
+    
+    var formData = {"Data": dataPart, DataType: "data", "Time": new Date(), "ActionType": "detection"};
+    */
+    
+    // xhr.send("{'url': 'https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png'}");
+    // alert(JSON.stringify(formData));
+    // xhr.send(JSON.stringify(formData));
+    // xhr.send(dataURItoBlob(canvas.toDataURL("image/jpeg", 0.5)));
+    canvas.toBlob(function(blob){xhr.send(blob)}, "image/jpeg", 0.5);
+
+    /*
+    $.ajax({
+            type: "post",
+            beforeSend: function(request){
+                request.setRequestHeader("Content-type", "application/octet-stream");
+                request.setRequestHeader("Ocp-Apim-Subscription-Key", key1)
+            },
+            data: {"Data":"iVBORw0KGgoAAAANSUhEUgAAABUAAAAVCAYAAACpF6WWAAAAAXNSR0IArs4c6QAABBNpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IlhNUCBDb3JlIDUuNC4wIj4KICAgPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4KICAgICAgPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIKICAgICAgICAgICAgeG1sbnM6eG1wTU09Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9tbS8iCiAgICAgICAgICAgIHhtbG5zOnN0UmVmPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvc1R5cGUvUmVzb3VyY2VSZWYjIgogICAgICAgICAgICB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iCiAgICAgICAgICAgIHhtbG5zOnRpZmY9Imh0dHA6Ly9ucy5hZG9iZS5jb20vdGlmZi8xLjAvIj4KICAgICAgICAgPHhtcE1NOkRlcml2ZWRGcm9tIHJkZjpwYXJzZVR5cGU9IlJlc291cmNlIj4KICAgICAgICAgICAgPHN0UmVmOmluc3RhbmNlSUQ+eG1wLmlpZDoxMEI1QUU5OTFDNzkxMUUyQjkxNEY3RUNEMkY1ODRBRDwvc3RSZWY6aW5zdGFuY2VJRD4KICAgICAgICAgICAgPHN0UmVmOmRvY3VtZW50SUQ+eG1wLmRpZDoxMEI1QUU5QTFDNzkxMUUyQjkxNEY3RUNEMkY1ODRBRDwvc3RSZWY6ZG9jdW1lbnRJRD4KICAgICAgICAgPC94bXBNTTpEZXJpdmVkRnJvbT4KICAgICAgICAgPHhtcE1NOkRvY3VtZW50SUQ+eG1wLmRpZDoxMEI1QUU5QzFDNzkxMUUyQjkxNEY3RUNEMkY1ODRBRDwveG1wTU06RG9jdW1lbnRJRD4KICAgICAgICAgPHhtcE1NOkluc3RhbmNlSUQ+eG1wLmlpZDoxMEI1QUU5QjFDNzkxMUUyQjkxNEY3RUNEMkY1ODRBRDwveG1wTU06SW5zdGFuY2VJRD4KICAgICAgICAgPHhtcDpDcmVhdG9yVG9vbD5BZG9iZSBQaG90b3Nob3AgQ1M2IChNYWNpbnRvc2gpPC94bXA6Q3JlYXRvclRvb2w+CiAgICAgICAgIDx0aWZmOk9yaWVudGF0aW9uPjE8L3RpZmY6T3JpZW50YXRpb24+CiAgICAgIDwvcmRmOkRlc2NyaXB0aW9uPgogICA8L3JkZjpSREY+CjwveDp4bXBtZXRhPgpTmIvEAAAA+UlEQVQ4EeVRwQ3CMBBLefFDLIK6AR0GVmAElmAsnjACj6b9E2y1jq6hKkQKL05K7fNdDHdxIYQap8UpEfSpK3xa59wGp1R4moZSbvJZiXRd9wTfVQjimKuchdEUXhecK28TmWc5meZoii1sje7S3NY+cu5UgZFP4PsRJWfjbx+KI2GPMTSiBOQNJrgTpRH7vj++PaqdTUZE6Ym2trk4TA/qJ07G5y+rkUVyq6k2h+pnLb7+XGOq4R+deZlBntZjPrQM3yiCSLea9/4hHfxma9KJWePzgjWyq7G1rPGt4RL/c9PJQy3tKafGnfqcC1/0epo2OKWM6dO8AA7WVUkCaV6HAAAAAElFTkSuQmCC","DataType":"data","Time":"Sun Apr 23 2017 02:58:13 GMT-0700 (Pacific Daylight Time)","ActionType":"detection"},
+            dataType: "data",
+            url: "https://westus.api.cognitive.microsoft.com/face/v1.0/detect?returnFaceId=true&returnFaceLandmarks=false&returnFaceAttributes=age,gender",
+            success: function(result, status, request){
+                var obj = JSON.parse(result);
+                alert(result);
+            }
+        });
+    */
+    
+    
+    xhr.onreadystatechange = function(result){
+        // if (xhr.readystate == 4){
+        result = xhr.responseText;
+        parse = JSON.parse(result);
+        // console.log(result);
+        try {div.innerHTML = syntaxHighlight(JSON.stringify(parse, null, 2))}
+        catch (e) {}
+    }
+}
+
+button.addEventListener("click", onClick);
+</script>
+</body>
+</html>
